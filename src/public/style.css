@@ -1,0 +1,42 @@
+:root {
+    --line-weight: 1px;
+}
+
+.board {
+    width: 500px;
+    height: 500px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    margin: 0 auto;
+}
+
+.piece {
+    border-color: black;
+    border-style: solid;
+    border-width: 0;
+}
+
+.piece:first-child {
+    border-right-width: var(--line-weight);
+    border-bottom-width: var(--line-weight);
+}
+
+.piece:nth-child(2) {
+    border-width: var(--line-weight);
+    border-top-width: 0;
+}
+
+.piece:nth-child(3) {
+    border-left-width: var(--line-weight);
+    border-bottom-width: var(--line-weight);
+}
+
+.piece:nth-child(4) {
+    border-width: var(--line-weight);
+    border-left-width: 0;
+}
+
+.piece:nth-child(5) {
+    border-width: var(--line-weight);
+}
