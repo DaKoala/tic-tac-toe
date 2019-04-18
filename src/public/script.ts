@@ -10,11 +10,16 @@ enum PieceState {
     Empty,
 }
 
-/* A bridge to make DOM manipulation more user-friendly */
-class MyElement {
-    private element: HTMLElement;
+enum PlayerType {
+    Red,
+    Blue,
+}
 
-    public constructor(id: string) {
+/* A bridge to make DOM manipulation more user-friendly */
+abstract class MyElement {
+    protected element: HTMLElement;
+
+    protected constructor(id: string) {
         const element = document.getElementById(id);
         if (element === null) {
             throw new Error('Element not found!');
@@ -31,6 +36,22 @@ class MyElement {
     }
 }
 
+class ClickableElement extends MyElement {
+    private userElement: GameUIElement;
+
+    public constructor(id: string, userElement: GameUIElement) {
+        super(id);
+        this.userElement = userElement;
+        this.addClickListener();
+    }
+
+    private addClickListener() {
+        this.element.addEventListener('click', () => {
+            this.userElement.click();
+        });
+    }
+}
+
 /* An abstract class of elements that users can interact with */
 abstract class GameUIElement {
     protected element: MyElement;
@@ -38,18 +59,29 @@ abstract class GameUIElement {
     protected board: Board;
 
     protected constructor(id: string, board: Board) {
-        this.element = new MyElement(id);
+        this.element = new ClickableElement(id, this);
         this.board = board;
     }
+
+    abstract click(): void;
 }
 
 class Piece extends GameUIElement {
     public state: PieceState;
 
+    public index: number;
+
     public constructor(index: number, board: Board) {
         const id = Piece.generateId(index);
         super(id, board);
+        this.index = index;
         this.state = PieceState.Empty;
+    }
+
+    public click(): void {
+        if (this.board instanceof PlayerBoard) {
+            this.board.place(this.index);
+        }
     }
 
     private static generateId(index: number): string {
@@ -67,6 +99,8 @@ abstract class Board {
 
     protected socket: Socket;
 
+    public turn = 0;
+
     protected constructor(socket: Socket) {
         this.socket = socket;
         this.pieces = [];
@@ -74,12 +108,28 @@ abstract class Board {
             this.pieces.push(new Piece(i, this));
         }
     }
+
+    protected onTurnChange(socket: Socket) {
+        socket.on('turn', (turnNumber: number) => {
+            this.turn = turnNumber;
+        });
+    }
 }
 
 class PlayerBoard extends Board {
-    public constructor(socket: Socket) {
+    public playerType: PlayerType;
+
+    public constructor(socket: Socket, playerType: PlayerType) {
         super(socket);
+        this.playerType = playerType;
         alert('You are a player!');
+    }
+
+    public place(pieceIndex: number): void {
+        const whoseTurn = this.turn % 2;
+        if (whoseTurn === this.playerType) {
+            this.socket.emit('place', pieceIndex);
+        }
     }
 }
 
@@ -90,11 +140,16 @@ class ObserverBoard extends Board {
     }
 }
 
-function createBoard(socket: Socket, type: string): Board {
-    if (type === 'player') {
-        return new PlayerBoard(socket);
+interface InitObj {
+    type: 'player' | 'observer';
+    index: PlayerType;
+}
+
+function createBoard(socket: Socket, initObj: InitObj): Board {
+    if (initObj.type === 'player') {
+        return new PlayerBoard(socket, initObj.index);
     }
-    if (type === 'observer') {
+    if (initObj.type === 'observer') {
         return new ObserverBoard(socket);
     }
     throw new Error('Invalid board type!');
@@ -102,6 +157,6 @@ function createBoard(socket: Socket, type: string): Board {
 
 const socket: Socket = io();
 let board: Board;
-socket.on('init', (type: string) => {
-    board = createBoard(socket, type);
+socket.on('init', (initObj: InitObj) => {
+    board = createBoard(socket, initObj);
 });
