@@ -10,6 +10,7 @@ module.exports = {
     ],
     rules: {
         'no-console': 'off',
+        'no-alert': 'off',
         '@typescript-eslint/explicit-function-return-type': 'off',
         '@typescript-eslint/no-unused-vars': 'error',
     }

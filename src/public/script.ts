@@ -10,6 +10,7 @@ enum PieceState {
     Empty,
 }
 
+/* A bridge to make DOM manipulation more user-friendly */
 class MyElement {
     private element: HTMLElement;
 
@@ -30,14 +31,24 @@ class MyElement {
     }
 }
 
-class Piece {
-    private element: MyElement;
+/* An abstract class of elements that users can interact with */
+abstract class GameUIElement {
+    protected element: MyElement;
 
+    protected board: Board;
+
+    protected constructor(id: string, board: Board) {
+        this.element = new MyElement(id);
+        this.board = board;
+    }
+}
+
+class Piece extends GameUIElement {
     public state: PieceState;
 
-    public constructor(index: number) {
+    public constructor(index: number, board: Board) {
         const id = Piece.generateId(index);
-        this.element = new MyElement(id);
+        super(id, board);
         this.state = PieceState.Empty;
     }
 
@@ -48,18 +59,49 @@ class Piece {
 
 interface Socket {
     emit(event: string, data: any): void;
+    on(event: string, callback: (payload: any) => void): void;
 }
 
-class Board {
-    private pieces: Piece[];
+abstract class Board {
+    protected pieces: Piece[];
 
-    private socket: Socket;
+    protected socket: Socket;
 
-    public constructor(socket: Socket) {
+    protected constructor(socket: Socket) {
         this.socket = socket;
         this.pieces = [];
         for (let i = 0; i < 9; i += 1) {
-            this.pieces.push(new Piece(i));
+            this.pieces.push(new Piece(i, this));
         }
     }
 }
+
+class PlayerBoard extends Board {
+    public constructor(socket: Socket) {
+        super(socket);
+        alert('You are a player!');
+    }
+}
+
+class ObserverBoard extends Board {
+    public constructor(socket: Socket) {
+        super(socket);
+        alert('Sorry, there can only be 2 players in a game, but you can still observe.');
+    }
+}
+
+function createBoard(socket: Socket, type: string): Board {
+    if (type === 'player') {
+        return new PlayerBoard(socket);
+    }
+    if (type === 'observer') {
+        return new ObserverBoard(socket);
+    }
+    throw new Error('Invalid board type!');
+}
+
+const socket: Socket = io();
+let board: Board;
+socket.on('init', (type: string) => {
+    board = createBoard(socket, type);
+});
