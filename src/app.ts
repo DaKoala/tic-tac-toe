@@ -40,6 +40,8 @@ type GamePieces = [Piece, Piece, Piece, Piece, Piece, Piece, Piece, Piece, Piece
 class Game {
     private io: SocketIO.Server;
 
+    private isOver = false;
+
     private connectedSockets: SocketIO.Socket[] = [];
 
     private pieces: GamePieces = [
@@ -93,6 +95,7 @@ class Game {
 
     private broadCastWinner(grids: [number, number, number]): void {
         const winnerType = this.turn % 2;
+        this.isOver = true;
         this.io.emit('winner', {
             winnerType,
             grids,
@@ -141,7 +144,12 @@ class Game {
                 return curr;
             }
         }
-        return undefined;
+        for (let i = 0; i < this.pieces.length; i += 1) {
+            if (this.pieces[i].state === PieceState.Empty) {
+                return undefined;
+            }
+        }
+        return [-1, -1, -1];
     }
 
     private checkThreePieces(i1: number, i2: number, i3: number): PlayerType | void {
@@ -167,6 +175,7 @@ class Game {
 
     private onQuit(socket: SocketIO.Socket): void {
         socket.on('disconnect', () => {
+            if (this.isOver) { return; }
             const { id } = socket;
             for (let i = 0; i < this.players.length; i += 1) {
                 if (this.players[i] === id) {
@@ -221,6 +230,7 @@ class Game {
         this.players = ['', ''];
         this.observers = [];
         this.turn = 0;
+        this.isOver = false;
     }
 
     private static playerToPiece(player: PlayerType): PieceState {

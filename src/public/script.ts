@@ -34,6 +34,10 @@ abstract class MyElement {
     public set text(content: string) {
         this.element.textContent = content;
     }
+
+    public changeBackground(color: string) {
+        this.element.style.backgroundColor = color;
+    }
 }
 
 class ClickableElement extends MyElement {
@@ -97,6 +101,10 @@ class Piece extends GameUIElement {
         this.element.text = pieceText;
     }
 
+    public highlight() {
+        this.element.changeBackground('green');
+    }
+
     private static generateId(index: number): string {
         return `piece-${index}`;
     }
@@ -119,6 +127,7 @@ abstract class Board {
         this.turn = turnNumber;
         this.onPieceChange();
         this.onTurnChange();
+        this.onWinnerBroadcast();
         this.pieces = [];
         for (let i = 0; i < 9; i += 1) {
             this.pieces.push(new Piece(i, this, pieceStates[i]));
@@ -138,6 +147,21 @@ abstract class Board {
         }
         this.socket.on('piece', (pieceInfo: PieceInfo) => {
             this.pieces[pieceInfo.pieceIndex].place(pieceInfo.pieceState);
+        });
+    }
+
+    protected onWinnerBroadcast() {
+        interface WinnerObj {
+            winnerType: PlayerType;
+            grids: [number, number, number];
+        }
+        this.socket.on('winner', (winnerObj: WinnerObj) => {
+            const { grids } = winnerObj;
+            if (grids[0] !== -1) {
+                grids.forEach((pieceIndex) => {
+                    this.pieces[pieceIndex].highlight();
+                });
+            }
         });
     }
 }
