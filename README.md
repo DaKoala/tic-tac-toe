@@ -3,6 +3,8 @@ _This is a weekly assignment of the course **Dynamic Web Applications**._
 
 A tic-tac-toe game powered by Websocket.
 
+**Attention:** This game is programmed using **TypeScript**, therefore you should use the command below to build it before run it.
+
 ## Installation
 ```bash
 npm install # install dependencies
