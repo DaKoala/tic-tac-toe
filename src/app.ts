@@ -40,6 +40,8 @@ type GamePieces = [Piece, Piece, Piece, Piece, Piece, Piece, Piece, Piece, Piece
 class Game {
     private io: SocketIO.Server;
 
+    private connectedSockets: SocketIO.Socket[] = [];
+
     private pieces: GamePieces = [
         new Piece(),
         new Piece(),
@@ -61,7 +63,7 @@ class Game {
     public constructor(io: SocketIO.Server) {
         this.io = io;
         io.on('connection', (socket) => {
-            console.log('A user connected');
+            this.connectedSockets.push(socket);
             this.init(socket);
             this.onQuit(socket);
             this.onPlace(socket);
@@ -87,7 +89,14 @@ class Game {
                 pieceStates,
             });
         }
-        console.log(this.players);
+    }
+
+    private broadCastWinner(grids: [number, number, number]): void {
+        const winnerType = this.turn % 2;
+        this.io.emit('winner', {
+            winnerType,
+            grids,
+        });
     }
 
     private nextTurn(): void {
@@ -115,6 +124,35 @@ class Game {
         return this.players.includes('');
     }
 
+    private checkWinner(): [number, number, number] | void {
+        const COMBINATIONS: [number, number, number][] = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6],
+        ];
+        for (let i = 0; i < COMBINATIONS.length; i += 1) {
+            const curr = COMBINATIONS[i];
+            if (this.checkThreePieces(...curr) !== undefined) {
+                return curr;
+            }
+        }
+        return undefined;
+    }
+
+    private checkThreePieces(i1: number, i2: number, i3: number): PlayerType | void {
+        if (this.pieces[i1].state === this.pieces[i2].state
+        && this.pieces[i1].state === this.pieces[i3].state
+        && this.pieces[i1].state !== PieceState.Empty) {
+            return this.pieces[i1].state === PieceState.Red ? PlayerType.Red : PlayerType.Blue;
+        }
+        return undefined;
+    }
+
     private addPlayer(socket: SocketIO.Socket): void {
         if (!this.hasPlayerSeat()) {
             throw new Error('No seat for player!');
@@ -133,6 +171,7 @@ class Game {
             for (let i = 0; i < this.players.length; i += 1) {
                 if (this.players[i] === id) {
                     this.players.splice(i, 1, '');
+                    this.restart('A player has quited the game, so the game is over. Please refresh the page for the next round.')
                     return;
                 }
             }
@@ -151,12 +190,23 @@ class Game {
             const playerType: PlayerType | void = this.checkPlayerType(socket.id);
             if (playerType !== undefined && playerType === this.turn % 2) {
                 this.placePiece(pieceIndex, Game.playerToPiece(playerType));
-                this.nextTurn();
+                const winnerGrids = this.checkWinner();
+                if (winnerGrids) {
+                    this.broadCastWinner(winnerGrids);
+                    this.restart();
+                } else {
+                    this.nextTurn();
+                }
             }
         });
     }
 
-    private restart() {
+    private restart(msg = 'Game is over. Please refresh the page for the next round.') {
+        while (this.connectedSockets.length > 0) {
+            const socket = this.connectedSockets.pop() as SocketIO.Socket;
+            socket.emit('close', msg);
+            socket.disconnect(true);
+        }
         this.pieces = [
             new Piece(),
             new Piece(),
@@ -168,7 +218,7 @@ class Game {
             new Piece(),
             new Piece(),
         ];
-        this.players = [];
+        this.players = ['', ''];
         this.observers = [];
         this.turn = 0;
     }
