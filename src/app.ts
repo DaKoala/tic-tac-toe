@@ -54,7 +54,7 @@ class Game {
 
     private turn = 0;
 
-    private players: string[] = [];
+    private players: string[] = ['', ''];
 
     private observers: string[] = [];
 
@@ -70,16 +70,16 @@ class Game {
 
     private init(socket: SocketIO.Socket): void {
         const pieceStates = this.pieces.map(piece => piece.state);
-        if (this.players.length <= 1) {
-            this.players.push(socket.id);
+        if (this.hasPlayerSeat()) {
+            this.addPlayer(socket);
             socket.emit('init', {
                 type: 'player',
                 turnNumber: this.turn,
-                index: this.players.length - 1,
+                index: this.players.indexOf(socket.id),
                 pieceStates,
             });
         } else {
-            this.observers.push(socket.id);
+            this.addObserver(socket);
             socket.emit('init', {
                 type: 'observer',
                 turnNumber: this.turn,
@@ -87,6 +87,7 @@ class Game {
                 pieceStates,
             });
         }
+        console.log(this.players);
     }
 
     private nextTurn(): void {
@@ -110,12 +111,28 @@ class Game {
         return playerIndex;
     }
 
+    private hasPlayerSeat(): boolean {
+        return this.players.includes('');
+    }
+
+    private addPlayer(socket: SocketIO.Socket): void {
+        if (!this.hasPlayerSeat()) {
+            throw new Error('No seat for player!');
+        }
+        const seatIndex = this.players.indexOf('');
+        this.players.splice(seatIndex, 1, socket.id);
+    }
+
+    private addObserver(socket: SocketIO.Socket): void {
+        this.observers.push(socket.id);
+    }
+
     private onQuit(socket: SocketIO.Socket): void {
         socket.on('disconnect', () => {
             const { id } = socket;
             for (let i = 0; i < this.players.length; i += 1) {
                 if (this.players[i] === id) {
-                    this.players.splice(i, 1);
+                    this.players.splice(i, 1, '');
                     return;
                 }
             }
@@ -130,6 +147,7 @@ class Game {
 
     private onPlace(socket: SocketIO.Socket) {
         socket.on('place', (pieceIndex: number) => {
+            if (this.hasPlayerSeat()) { return; }
             const playerType: PlayerType | void = this.checkPlayerType(socket.id);
             if (playerType !== undefined && playerType === this.turn % 2) {
                 this.placePiece(pieceIndex, Game.playerToPiece(playerType));
@@ -138,12 +156,29 @@ class Game {
         });
     }
 
+    private restart() {
+        this.pieces = [
+            new Piece(),
+            new Piece(),
+            new Piece(),
+            new Piece(),
+            new Piece(),
+            new Piece(),
+            new Piece(),
+            new Piece(),
+            new Piece(),
+        ];
+        this.players = [];
+        this.observers = [];
+        this.turn = 0;
+    }
+
     private static playerToPiece(player: PlayerType): PieceState {
         return player === PlayerType.Red ? PieceState.Red : PieceState.Blue;
     }
 }
 
-const game = new Game(ioServer);
+let game = new Game(ioServer);
 
 const PORT = 3000;
 server.listen(PORT, () => {

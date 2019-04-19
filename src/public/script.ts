@@ -151,7 +151,8 @@ class PlayerBoard extends Board {
         pieceStates: PieceState[]) {
         super(socket, turnNumber, pieceStates);
         this.playerType = playerType;
-        alert('You are a player!');
+        const color = playerType === PlayerType.Red ? 'red' : 'blue';
+        alert(`Your are player ${color}!`);
     }
 
     public place(pieceIndex: number): void {
@@ -192,4 +193,7 @@ const socket: Socket = io();
 let board: Board;
 socket.on('init', (initObj: InitObj) => {
     board = createBoard(socket, initObj);
+});
+socket.on('close', (msg: string) => {
+    alert(msg);
 });
