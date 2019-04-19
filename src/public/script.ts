@@ -16,10 +16,10 @@ enum PlayerType {
 }
 
 /* A bridge to make DOM manipulation more user-friendly */
-abstract class MyElement {
+class MyElement {
     protected element: HTMLElement;
 
-    protected constructor(id: string) {
+    public constructor(id: string) {
         const element = document.getElementById(id);
         if (element === null) {
             throw new Error('Element not found!');
@@ -122,9 +122,12 @@ abstract class Board {
 
     public turn: number;
 
+    protected message = new MyElement('message');
+
     protected constructor(socket: Socket, turnNumber: number, pieceStates: PieceState[]) {
         this.socket = socket;
         this.turn = turnNumber;
+        this.updateTurn();
         this.onPieceChange();
         this.onTurnChange();
         this.onWinnerBroadcast();
@@ -132,12 +135,20 @@ abstract class Board {
         for (let i = 0; i < 9; i += 1) {
             this.pieces.push(new Piece(i, this, pieceStates[i]));
         }
+        const identity = document.getElementById('identity') as HTMLElement;
+        identity.style.display = 'block';
     }
 
     protected onTurnChange() {
         this.socket.on('turn', (turnNumber: number) => {
             this.turn = turnNumber;
+            this.updateTurn();
         });
+    }
+
+    protected updateTurn() {
+        const color = this.turn % 2 === 0 ? 'red' : 'blue';
+        this.message.text = `It's ${color}'s turn`;
     }
 
     protected onPieceChange() {
@@ -161,6 +172,10 @@ abstract class Board {
                 grids.forEach((pieceIndex) => {
                     this.pieces[pieceIndex].highlight();
                 });
+                const winner = winnerObj.winnerType === PlayerType.Red ? 'Red' : 'Blue';
+                this.message.text = `${winner} wins!`;
+            } else {
+                this.message.text = 'It\' a tie!';
             }
         });
     }
@@ -176,7 +191,9 @@ class PlayerBoard extends Board {
         super(socket, turnNumber, pieceStates);
         this.playerType = playerType;
         const color = playerType === PlayerType.Red ? 'red' : 'blue';
-        alert(`Your are player ${color}!`);
+        alert(`You are player ${color}!`);
+        const identity = document.getElementById('identity') as HTMLElement;
+        identity.textContent = `You are player ${color}`;
     }
 
     public place(pieceIndex: number): void {

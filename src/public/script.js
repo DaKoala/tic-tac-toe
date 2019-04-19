@@ -89,8 +89,10 @@ class Piece extends GameUIElement {
 }
 class Board {
     constructor(socket, turnNumber, pieceStates) {
+        this.message = new MyElement('message');
         this.socket = socket;
         this.turn = turnNumber;
+        this.updateTurn();
         this.onPieceChange();
         this.onTurnChange();
         this.onWinnerBroadcast();
@@ -98,11 +100,18 @@ class Board {
         for (let i = 0; i < 9; i += 1) {
             this.pieces.push(new Piece(i, this, pieceStates[i]));
         }
+        const identity = document.getElementById('identity');
+        identity.style.display = 'block';
     }
     onTurnChange() {
         this.socket.on('turn', (turnNumber) => {
             this.turn = turnNumber;
+            this.updateTurn();
         });
+    }
+    updateTurn() {
+        const color = this.turn % 2 === 0 ? 'red' : 'blue';
+        this.message.text = `It's ${color}'s turn`;
     }
     onPieceChange() {
         this.socket.on('piece', (pieceInfo) => {
@@ -116,6 +125,11 @@ class Board {
                 grids.forEach((pieceIndex) => {
                     this.pieces[pieceIndex].highlight();
                 });
+                const winner = winnerObj.winnerType === PlayerType.Red ? 'Red' : 'Blue';
+                this.message.text = `${winner} wins!`;
+            }
+            else {
+                this.message.text = 'It\' a tie!';
             }
         });
     }
@@ -125,7 +139,9 @@ class PlayerBoard extends Board {
         super(socket, turnNumber, pieceStates);
         this.playerType = playerType;
         const color = playerType === PlayerType.Red ? 'red' : 'blue';
-        alert(`Your are player ${color}!`);
+        alert(`You are player ${color}!`);
+        const identity = document.getElementById('identity');
+        identity.textContent = `You are player ${color}`;
     }
     place(pieceIndex) {
         const whoseTurn = this.turn % 2;
