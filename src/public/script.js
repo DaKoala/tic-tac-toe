@@ -52,39 +52,60 @@ class GameUIElement {
     }
 }
 class Piece extends GameUIElement {
-    constructor(index, board) {
+    constructor(index, board, state) {
         const id = Piece.generateId(index);
         super(id, board);
         this.index = index;
-        this.state = PieceState.Empty;
+        this.state = state;
+        this.place(state);
     }
     click() {
         if (this.board instanceof PlayerBoard) {
             this.board.place(this.index);
         }
     }
+    place(state) {
+        let pieceText;
+        if (state === PieceState.Red) {
+            pieceText = PieceText.Red;
+        }
+        else if (state === PieceState.Blue) {
+            pieceText = PieceText.Blue;
+        }
+        else {
+            pieceText = PieceText.Empty;
+        }
+        this.element.text = pieceText;
+    }
     static generateId(index) {
         return `piece-${index}`;
     }
 }
 class Board {
-    constructor(socket) {
-        this.turn = 0;
+    constructor(socket, turnNumber, pieceStates) {
         this.socket = socket;
+        this.turn = turnNumber;
+        this.onPieceChange();
+        this.onTurnChange();
         this.pieces = [];
         for (let i = 0; i < 9; i += 1) {
-            this.pieces.push(new Piece(i, this));
+            this.pieces.push(new Piece(i, this, pieceStates[i]));
         }
     }
-    onTurnChange(socket) {
-        socket.on('turn', (turnNumber) => {
+    onTurnChange() {
+        this.socket.on('turn', (turnNumber) => {
             this.turn = turnNumber;
+        });
+    }
+    onPieceChange() {
+        this.socket.on('piece', (pieceInfo) => {
+            this.pieces[pieceInfo.pieceIndex].place(pieceInfo.pieceState);
         });
     }
 }
 class PlayerBoard extends Board {
-    constructor(socket, playerType) {
-        super(socket);
+    constructor(socket, turnNumber, playerType, pieceStates) {
+        super(socket, turnNumber, pieceStates);
         this.playerType = playerType;
         alert('You are a player!');
     }
@@ -96,17 +117,17 @@ class PlayerBoard extends Board {
     }
 }
 class ObserverBoard extends Board {
-    constructor(socket) {
-        super(socket);
+    constructor(socket, turnNumber, pieceStates) {
+        super(socket, turnNumber, pieceStates);
         alert('Sorry, there can only be 2 players in a game, but you can still observe.');
     }
 }
 function createBoard(socket, initObj) {
     if (initObj.type === 'player') {
-        return new PlayerBoard(socket, initObj.index);
+        return new PlayerBoard(socket, initObj.turnNumber, initObj.index, initObj.pieceStates);
     }
     if (initObj.type === 'observer') {
-        return new ObserverBoard(socket);
+        return new ObserverBoard(socket, initObj.turnNumber, initObj.pieceStates);
     }
     throw new Error('Invalid board type!');
 }

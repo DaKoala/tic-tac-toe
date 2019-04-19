@@ -64,27 +64,50 @@ class Game {
             console.log('A user connected');
             this.init(socket);
             this.onQuit(socket);
+            this.onPlace(socket);
         });
     }
 
     private init(socket: SocketIO.Socket): void {
+        const pieceStates = this.pieces.map(piece => piece.state);
         if (this.players.length <= 1) {
             this.players.push(socket.id);
             socket.emit('init', {
                 type: 'player',
+                turnNumber: this.turn,
                 index: this.players.length - 1,
+                pieceStates,
             });
         } else {
             this.observers.push(socket.id);
             socket.emit('init', {
                 type: 'observer',
+                turnNumber: this.turn,
                 index: -1,
+                pieceStates,
             });
         }
     }
 
-    private changeTurn(socket: SocketIO.Socket): void {
-        socket.emit('turn', this.turn);
+    private nextTurn(): void {
+        this.turn += 1;
+        this.io.emit('turn', this.turn);
+    }
+
+    private placePiece(pieceIndex: number, type: PieceState) {
+        this.pieces[pieceIndex].place(type);
+        this.io.emit('piece', {
+            pieceIndex,
+            pieceState: type,
+        });
+    }
+
+    private checkPlayerType(id: string): PlayerType | void {
+        const playerIndex = this.players.indexOf(id);
+        if (playerIndex === -1) {
+            return undefined;
+        }
+        return playerIndex;
     }
 
     private onQuit(socket: SocketIO.Socket): void {
@@ -107,14 +130,16 @@ class Game {
 
     private onPlace(socket: SocketIO.Socket) {
         socket.on('place', (pieceIndex: number) => {
-            const playerType = this.players.indexOf(socket.id) as PlayerType;
-            if (this.turn % 2 === playerType) {
-                const pieceState = playerType === PlayerType.Red ? PieceState.Red : PieceState.Blue;
-                this.pieces[pieceIndex].place(pieceState);
-                this.turn += 1;
-                this.changeTurn(socket);
+            const playerType: PlayerType | void = this.checkPlayerType(socket.id);
+            if (playerType !== undefined && playerType === this.turn % 2) {
+                this.placePiece(pieceIndex, Game.playerToPiece(playerType));
+                this.nextTurn();
             }
         });
+    }
+
+    private static playerToPiece(player: PlayerType): PieceState {
+        return player === PlayerType.Red ? PieceState.Red : PieceState.Blue;
     }
 }
 

@@ -12,6 +12,7 @@
 }
 
 .piece {
+    cursor: pointer;
     border-color: black;
     border-style: solid;
     border-width: 0;

@@ -71,17 +71,30 @@ class Piece extends GameUIElement {
 
     public index: number;
 
-    public constructor(index: number, board: Board) {
+    public constructor(index: number, board: Board, state: PieceState) {
         const id = Piece.generateId(index);
         super(id, board);
         this.index = index;
-        this.state = PieceState.Empty;
+        this.state = state;
+        this.place(state);
     }
 
     public click(): void {
         if (this.board instanceof PlayerBoard) {
             this.board.place(this.index);
         }
+    }
+
+    public place(state: PieceState): void {
+        let pieceText;
+        if (state === PieceState.Red) {
+            pieceText = PieceText.Red;
+        } else if (state === PieceState.Blue) {
+            pieceText = PieceText.Blue;
+        } else {
+            pieceText = PieceText.Empty;
+        }
+        this.element.text = pieceText;
     }
 
     private static generateId(index: number): string {
@@ -99,19 +112,32 @@ abstract class Board {
 
     protected socket: Socket;
 
-    public turn = 0;
+    public turn: number;
 
-    protected constructor(socket: Socket) {
+    protected constructor(socket: Socket, turnNumber: number, pieceStates: PieceState[]) {
         this.socket = socket;
+        this.turn = turnNumber;
+        this.onPieceChange();
+        this.onTurnChange();
         this.pieces = [];
         for (let i = 0; i < 9; i += 1) {
-            this.pieces.push(new Piece(i, this));
+            this.pieces.push(new Piece(i, this, pieceStates[i]));
         }
     }
 
-    protected onTurnChange(socket: Socket) {
-        socket.on('turn', (turnNumber: number) => {
+    protected onTurnChange() {
+        this.socket.on('turn', (turnNumber: number) => {
             this.turn = turnNumber;
+        });
+    }
+
+    protected onPieceChange() {
+        interface PieceInfo {
+            pieceIndex: number;
+            pieceState: PieceState;
+        }
+        this.socket.on('piece', (pieceInfo: PieceInfo) => {
+            this.pieces[pieceInfo.pieceIndex].place(pieceInfo.pieceState);
         });
     }
 }
@@ -119,8 +145,11 @@ abstract class Board {
 class PlayerBoard extends Board {
     public playerType: PlayerType;
 
-    public constructor(socket: Socket, playerType: PlayerType) {
-        super(socket);
+    public constructor(socket: Socket,
+        turnNumber: number,
+        playerType: PlayerType,
+        pieceStates: PieceState[]) {
+        super(socket, turnNumber, pieceStates);
         this.playerType = playerType;
         alert('You are a player!');
     }
@@ -134,23 +163,27 @@ class PlayerBoard extends Board {
 }
 
 class ObserverBoard extends Board {
-    public constructor(socket: Socket) {
-        super(socket);
+    public constructor(socket: Socket,
+        turnNumber: number,
+        pieceStates: PieceState[]) {
+        super(socket, turnNumber, pieceStates);
         alert('Sorry, there can only be 2 players in a game, but you can still observe.');
     }
 }
 
 interface InitObj {
+    turnNumber: number;
     type: 'player' | 'observer';
     index: PlayerType;
+    pieceStates: PieceState[];
 }
 
 function createBoard(socket: Socket, initObj: InitObj): Board {
     if (initObj.type === 'player') {
-        return new PlayerBoard(socket, initObj.index);
+        return new PlayerBoard(socket, initObj.turnNumber, initObj.index, initObj.pieceStates);
     }
     if (initObj.type === 'observer') {
-        return new ObserverBoard(socket);
+        return new ObserverBoard(socket, initObj.turnNumber, initObj.pieceStates);
     }
     throw new Error('Invalid board type!');
 }
